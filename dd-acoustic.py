@@ -6,7 +6,7 @@ from geometry import shape
 geom = 'sphere'
 
 aspectRatio = 1/10  # ratio of column's height to it's width
-sizeParam = 20      # size parameter
+sizeParam = 30      # size parameter
 nPerLam = 10        # number of voxels per interior wavelength
 
 # Refractive index of scatterer (real and imaginary parts)
@@ -244,23 +244,57 @@ plt.close()
 # fig.savefig('mat.png')
 
 
-from mie_series_function import mie_function
-P = mie_function(sizeParam, refInd, L)
+# from mie_series_function import mie_function
+# P = mie_function(sizeParam, refInd, L)
 
-fig = plt.figure(figsize=(10, 8))
-ax = fig.gca()
+# fig = plt.figure(figsize=(10, 8))
+# ax = fig.gca()
 
-plt.imshow(np.abs(U_centre-np.conj(P)).T,
-           cmap=plt.cm.get_cmap('RdBu_r'), interpolation='spline16')
+# plt.imshow(np.abs(U_centre-np.conj(P)).T,
+#            cmap=plt.cm.get_cmap('RdBu_r'), interpolation='spline16')
 
 
-plt.xlabel(r'$x$')
-plt.ylabel(r'$y$')
-cbar = plt.colorbar()
-# cbar.ax.set_ylabel('Pressure (MPa)')
-fig.savefig('diff.png')
-plt.close()
-error = np.linalg.norm(U_centre-np.conj(P)) / np.linalg.norm(P)
-print('Error = ', error)
+# plt.xlabel(r'$x$')
+# plt.ylabel(r'$y$')
+# cbar = plt.colorbar()
+# # cbar.ax.set_ylabel('Pressure (MPa)')
+# fig.savefig('diff.png')
+# plt.close()
+# error = np.linalg.norm(U_centre-np.conj(P)) / np.linalg.norm(P)
+# print('Error = ', error)
+
+# from IPython import embed; embed()
+
+# 2-level circulant preconditioner for acoustic problem
+from circulant_acoustic import circ_1_level_acoustic, circ_2_level_acoustic
+circ, circ_L_opToep = circ_1_level_acoustic(toep, L, M, N)
+circ2, circ_M_opToep = circ_2_level_acoustic(circ_L_opToep, L, M, N)
+
+# Invert preconditioner
+circ2_inv = np.zeros_like(circ2)
+for i in range(0, L):
+    for j in range(0, M):
+        circ2_inv[i, j, :, :] = np.linalg.inv(np.identity(N) - (refInd**2 - 1)
+                                              * circ2[i, j, :, :])
+
+from circulant_acoustic import mvp_circ2_acoustic
+mvp_prec = lambda x: mvp_circ2_acoustic(x, circ2_inv, L, M, N, idx)
+prec = LinearOperator((L*M*N, L*M*N), matvec=mvp_prec)
+
+#  Callback function to output the residual
+resvec = []
+def residual_vector(rk):
+    global resvec
+    resvec.append(rk)
+
+
+start = time.time()
+resvec = []
+sol1, info1 = gmres(A, xInVec, M=prec, tol=1e-4, restart=500, callback=residual_vector)
+end = time.time()
+print("The linear system was solved in {0} iterations".format(len(resvec)))
+print('Solve time = ', end-start,'s')
+print('Relative residual = ',
+      np.linalg.norm(mvp(sol1)-xInVec)/np.linalg.norm(xInVec))
 
 # from IPython import embed; embed()
