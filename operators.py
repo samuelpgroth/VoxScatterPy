@@ -154,9 +154,9 @@ def circulant_nop_const(Toep, L, M, N):
     # %
     for ii in range(0, 6):
         # Cube 'L'
-        Gp_mn[L+1:2*L,0:M,0:N,ii]        = G_mn[-1:0:-1, 0:M, 0:N, ii] * Gp_coeff_L[ii]
+        Gp_mn[L+1:2*L,0:M,0:N,ii] = G_mn[-1:0:-1, 0:M, 0:N, ii] * Gp_coeff_L[ii]
         # Cube 'M'
-        Gp_mn[0:L,M+1:2*M,0:N,ii]        = G_mn[0:L, -1:0:-1, 0:N, ii] * Gp_coeff_M[ii]
+        Gp_mn[0:L,M+1:2*M,0:N,ii] = G_mn[0:L, -1:0:-1, 0:N, ii] * Gp_coeff_M[ii]
         # Cube 'N'
         Gp_mn[0:L, 0:M, N+1:2*N, ii]     = G_mn[0:L, 0:M, -1:0:-1, ii] * Gp_coeff_N[ii]
         # Cube 'LM'

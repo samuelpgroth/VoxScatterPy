@@ -107,6 +107,13 @@ def shape(geom, refInd, sizeParam, nPerLam, aspectRatio):
         P[:-1, 1] = y
         P[-1, 0] = x[0]
         P[-1, 1] = y[0]
+    elif geom in 'sphere':
+        a = 1
+        dom_x = 2 * a
+        dom_y = dom_x
+        dom_z = dom_x
+        P = []  # vertices leave blank
+
 
     lambda_ext = 2 * np.pi * a / sizeParam     # exterior wavelength
     lambda_int = lambda_ext / np.real(refInd)  # interior wavelength
@@ -120,9 +127,15 @@ def shape(geom, refInd, sizeParam, nPerLam, aspectRatio):
     r, L, M, N = generatedomain(res, dom_x, dom_y, dom_z)
 
     # Determine which points lie inside shape
-    points = r[:, :, :, 0:2].reshape(L*M*N, 2, order='F')
-    p = path.Path(P) 
-    idx = p.contains_points(points).reshape(L, M, N, order='F')
+    if geom in 'sphere':
+        r_sq = r[:, :, :, 0]**2 + r[:, :, :, 1]**2 + r[:, :, :, 2]**2
+        idx = (r_sq <= a)
+        # from IPython import embed; embed()
+    else:
+        # Polyhedron
+        points = r[:, :, :, 0:2].reshape(L*M*N, 2, order='F')
+        p = path.Path(P)
+        idx = p.contains_points(points).reshape(L, M, N, order='F')
 
     return r, idx, res, P, lambda_ext, lambda_int
 
