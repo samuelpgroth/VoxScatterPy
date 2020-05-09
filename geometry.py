@@ -18,8 +18,10 @@ def generatedomain(res, dx, dy, dz):
     return r, L, M, N
 
 
+from numba import jit, njit, prange
+import numpy as np
+@njit(parallel=True)
 def grid3d(x, y, z):
-    import numpy as np
     # define the dimensions
     L = x.shape[0]
     M = y.shape[0]
@@ -28,7 +30,7 @@ def grid3d(x, y, z):
     # allocate space
     r = np.zeros((L,M,N,3))
     
-    for ix in range(0, L):
+    for ix in prange(0, L):
         xx = x[ix]
         for iy in range(0, M):
             yy = y[iy]

@@ -180,3 +180,22 @@ def fft_operator(A):
         fA[:, :, :, p] = np.fft.fftn(A[:, :, :, p])
         
     return fA
+
+
+def circulant_embed(toep, L, M, N):
+    import numpy as np
+    # Circulant embedding
+    circ = np.zeros((2 * L, 2 * M, 2 * N), dtype=np.complex128)
+
+    circ[0:L, 0:M, 0:N] = toep
+    circ[0:L, 0:M, N+1:2*N] = toep[0:L, 0:M, -1:0:-1]
+    circ[0:L, M+1:2*M, 0:N] = toep[0:L, -1:0:-1, 0:N]
+    circ[0:L, M+1:2*M, N+1:2*N] = toep[0:L, -1:0:-1, -1:0:-1]
+    circ[L+1:2*L, 0:M, 0:N] = toep[-1:0:-1, 0:M, 0:N]
+    circ[L+1:2*L, 0:M, N+1:2*N] = toep[-1:0:-1, 0:M, -1:0:-1]
+    circ[L+1:2*L, M+1:2*M, 0:N] = toep[-1:0:-1, -1:0:-1, 0:N]
+    circ[L+1:2*L, M+1:2*M, N+1:2*N] = toep[-1:0:-1, -1:0:-1, -1:0:-1]
+
+    # FFT of circulant operator
+    circ_op = np.fft.fftn(circ)
+    return circ_op

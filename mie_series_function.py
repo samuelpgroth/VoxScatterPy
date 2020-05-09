@@ -137,25 +137,25 @@ def mie_function(sizeParam, n, Nx):
 
     P = p_t.reshape((Nx, Ny))
 
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-    matplotlib.rcParams.update({'font.size': 22})
-    plt.rc('text', usetex=True)
-    plt.rc('font', family='serif')
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.gca()
-    plt.imshow(np.real(np.fliplr(P).T),
-            extent=[xmin, xmax, ymin, ymax],
-            cmap=plt.cm.get_cmap('RdBu_r'),
-            interpolation='spline16')
-    circle2 = plt.Circle((0, 0), a, color='black', fill=False)
-    ax.add_artist(circle2)
-    plt.xlabel('$x$')
-    plt.ylabel('$y$')
-    plt.colorbar()
+    # import matplotlib
+    # matplotlib.use('Agg')
+    # import matplotlib.pyplot as plt
+    # matplotlib.rcParams.update({'font.size': 22})
+    # plt.rc('text', usetex=True)
+    # plt.rc('font', family='serif')
+    # fig = plt.figure(figsize=(10, 8))
+    # ax = fig.gca()
+    # plt.imshow(np.real(np.fliplr(P).T),
+    #         extent=[xmin, xmax, ymin, ymax],
+    #         cmap=plt.cm.get_cmap('RdBu_r'),
+    #         interpolation='spline16')
+    # circle2 = plt.Circle((0, 0), a, color='black', fill=False)
+    # ax.add_artist(circle2)
+    # plt.xlabel('$x$')
+    # plt.ylabel('$y$')
+    # plt.colorbar()
 
-    fig.savefig('mie.png')
-    plt.close()
+    # fig.savefig('mie.png')
+    # plt.close()
 
     return P

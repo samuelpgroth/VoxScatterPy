@@ -2,11 +2,12 @@
 # equation for 3D acoustic scattering
 import numpy as np
 from geometry import shape
+import time
 
 geom = 'sphere'
 
 aspectRatio = 1/10  # ratio of column's height to it's width
-sizeParam = 5      # size parameter
+sizeParam = 25      # size parameter
 nPerLam = 10        # number of voxels per interior wavelength
 
 # Refractive index of scatterer (real and imaginary parts)
@@ -55,7 +56,11 @@ xG, wG = np.polynomial.legendre.leggauss(n_quad)
 XG, YG, ZG = np.meshgrid(xG, xG, xG)
 XW, YW, ZW = np.meshgrid(wG*0.5, wG*0.5, wG*0.5)
 
-for i in range(0, L):
+from numba import jit, njit, prange
+@njit(parallel=True)
+def potential_fast(ko):
+    toep = np.zeros((L, M, N), dtype=np.complex128)
+    for i in prange(0, L):
         for j in range(0, M):
             for k in range(0, N):
                 R1 = r[i,j,k,:]
@@ -81,9 +86,8 @@ for i in range(0, L):
                                     rjkrjk = np.outer(rjk_hat, rjk_hat)
 
                                     Ajk = np.exp(1j * ko * rjk) / (4 * np.pi * rjk) * dx**3
-                                         # Draine & Flatau
+                                    # Draine & Flatau
                                     temp = temp + Ajk * XW[iQ, jQ, kQ] * YW[iQ, jQ, kQ] * ZW[iQ, jQ, kQ]
-                        # from IPython import embed; embed()
                         toep[i, j, k] = temp
                     else:
                         if np.abs(rjk) > 1e-15:
@@ -97,37 +101,21 @@ for i in range(0, L):
                             np.exp(1j * ko * rjk) / (4 * np.pi * rjk) * dx**3
                     else:
                         toep[i, j, k] = self
+    return toep
 
-# # Dense matrix assembly
-# mat = np.zeros((L * M * N, L * M * N), dtype=np.complex128)
-# r_ro = r.reshape(L*M*N, 3, order='F')
-# for i in range(0, L*M*N):
-#     R0 = r_ro[i, :]
-#     for j in range(0, L*M*N):
-#         R1 = r_ro[j, :]
-#         rk_to_rj = R1-R0
-#         rjk = np.linalg.norm(rk_to_rj)
-#         if np.abs(rjk) > 1e-15:
-#             mat[i, j] = \
-#                 np.exp(1j * ko * rjk) / (4 * np.pi * rjk)
-#         else:
-#             mat[i, j] = self
+start = time.time()
+toep = potential_fast(ko)
+end = time.time()
+print('Operator assembly time:', end-start)
 
 toep = ko**2 * toep
+
+start = time.time()
 # Circulant embedding
-circ = np.zeros((2 * L, 2 * M, 2 * N), dtype=np.complex128)
-
-circ[0:L, 0:M, 0:N] = toep
-circ[0:L, 0:M, N+1:2*N] = toep[0:L, 0:M, -1:0:-1]
-circ[0:L, M+1:2*M, 0:N] = toep[0:L, -1:0:-1, 0:N]
-circ[0:L, M+1:2*M, N+1:2*N] = toep[0:L, -1:0:-1, -1:0:-1]
-circ[L+1:2*L, 0:M, 0:N] = toep[-1:0:-1, 0:M, 0:N]
-circ[L+1:2*L, 0:M, N+1:2*N] = toep[-1:0:-1, 0:M, -1:0:-1]
-circ[L+1:2*L, M+1:2*M, 0:N] = toep[-1:0:-1, -1:0:-1, 0:N]
-circ[L+1:2*L, M+1:2*M, N+1:2*N] = toep[-1:0:-1, -1:0:-1, -1:0:-1]
-
-# FFT of circulant operator
-circ_op = np.fft.fftn(circ)
+from operators import circulant_embed
+circ_op = circulant_embed(toep, L, M, N)
+end = time.time()
+print('Time for circulant embedding and FFT:', end-start)
 
 # Matrix-vector product with Toeplitz operator
 def mvp_vec(xIn, circ_op, idx, Mr):
@@ -152,14 +140,11 @@ xInVec = xIn.reshape((L*M*N, 1), order='F')
 
 mvp = lambda x: mvp_vec(x, circ_op, idx, Mr)
 
-
+# Solving the linear system
 from scipy.sparse.linalg import LinearOperator, gmres
 import time
 
 A = LinearOperator((L*M*N, L*M*N), matvec=mvp)
-
-# A_dense = np.identity(L*M*N) - \
-#     ko**2 * np.matmul(np.diag(Mr.reshape(L*M*N, 1, order='F')[:, 0]), mat)
 
 it_count = 0
 
@@ -196,74 +181,6 @@ def mvp_domain(xIn, circ_op, idx, Mr):
     return xOutVec
 
 
-# idx_n = np.ones((L, M, N), dtype=bool)
-# mvp_all = lambda x:mvp_domain(x, circ_op, idx_n, Mr)
-
-# temp = mvp_all(sol)
-
-# Utemp = temp.reshape(L, M, N, order='F')
-# U = Uinc - Utemp + J
-# # U= Utemp
-# U_centre = U[:, :, np.int(np.round(N/2))]
-
-# import matplotlib
-# matplotlib.use('Agg')
-# import matplotlib.pyplot as plt
-# matplotlib.rcParams.update({'font.size': 22})
-# plt.rc('text', usetex=True)
-# plt.rc('font', family='serif')
-# fig = plt.figure(figsize=(10, 8))
-# ax = fig.gca()
-
-# plt.imshow(np.real(U_centre).T,
-#            extent=[min(xd[:,0,0]) , max(xd[:,0,0]),
-#            min(yd[0,:,0]), max(yd[0,:,0])],
-#            cmap=plt.cm.get_cmap('RdBu_r'), interpolation='spline16')
-
-# circle2 = plt.Circle((0, 0), sizeParam/ko, color='black', fill=False)
-# ax.add_artist(circle2)
-
-# plt.xlabel(r'$x$')
-# plt.ylabel(r'$y$')
-# cbar = plt.colorbar()
-# # cbar.ax.set_ylabel('Pressure (MPa)')
-# fig.savefig('out.png')
-# plt.close()
-
-# matplotlib.rcParams.update({'font.size': 22})
-# fig = plt.figure(figsize=(10, 8))
-# ax = fig.gca()
-
-# plt.imshow(np.real(A_dense).T,
-#            cmap=plt.cm.get_cmap('RdBu_r'), interpolation='spline16')
-# plt.xlabel(r'$x$')
-# plt.ylabel(r'$y$')
-# cbar = plt.colorbar()
-# # cbar.ax.set_ylabel('Pressure (MPa)')
-# fig.savefig('mat.png')
-
-
-# from mie_series_function import mie_function
-# P = mie_function(sizeParam, refInd, L)
-
-# fig = plt.figure(figsize=(10, 8))
-# ax = fig.gca()
-
-# plt.imshow(np.abs(U_centre-np.conj(P)).T,
-#            cmap=plt.cm.get_cmap('RdBu_r'), interpolation='spline16')
-
-
-# plt.xlabel(r'$x$')
-# plt.ylabel(r'$y$')
-# cbar = plt.colorbar()
-# # cbar.ax.set_ylabel('Pressure (MPa)')
-# fig.savefig('diff.png')
-# plt.close()
-# error = np.linalg.norm(U_centre-np.conj(P)) / np.linalg.norm(P)
-# print('Error = ', error)
-
-# from IPython import embed; embed()
-
 start = time.time()
 # 2-level circulant preconditioner for acoustic problem
 from circulant_acoustic import circ_1_level_acoustic, circ_2_level_acoustic
@@ -296,11 +213,11 @@ start = time.time()
 # circ2_inv = do_inv_parallel(circ2)
 
 def processInput(i):
-    ha = np.zeros((M, N, N), dtype=np.complex128)
+    inverse_blocks = np.zeros((M, N, N), dtype=np.complex128)
     for j in range(0, M):
-            ha[j, :, :] = np.linalg.inv(np.identity(N) - (refInd**2 - 1)
+            inverse_blocks[j, :, :] = np.linalg.inv(np.identity(N) - (refInd**2 - 1)
                                               * circ2[i, j, :, :])
-    return ha
+    return inverse_blocks
 
 from joblib import Parallel, delayed  
 import multiprocessing
@@ -342,38 +259,18 @@ print('Solve time = ', end-start,'s')
 print('Relative residual = ',
       np.linalg.norm(mvp(sol1)-xInVec)/np.linalg.norm(xInVec))
 
-# from IPython import embed; embed()
+# from mie_series_function import mie_function
+# P = mie_function(sizeParam, refInd, L)
 
-from mie_series_function import mie_function
-P = mie_function(sizeParam, refInd, L)
+# idx_n = np.ones((L, M, N), dtype=bool)
+# mvp_all = lambda x:mvp_domain(x, circ_op, idx_n, Mr)
 
-idx_n = np.ones((L, M, N), dtype=bool)
-mvp_all = lambda x:mvp_domain(x, circ_op, idx_n, Mr)
+# temp = mvp_all(sol1)
 
-temp = mvp_all(sol1)
+# Utemp = temp.reshape(L, M, N, order='F')
+# U = Uinc - Utemp + J
+# # U= Utemp
+# U_centre = U[:, :, np.int(np.round(N/2))]
 
-Utemp = temp.reshape(L, M, N, order='F')
-U = Uinc - Utemp + J
-# U= Utemp
-U_centre = U[:, :, np.int(np.round(N/2))]
-
-error = np.linalg.norm(U_centre-np.conj(P)) / np.linalg.norm(P)
-print('Error = ', error)
-
-# def processInput(i):
-#     ha = np.zeros((M, N, N), dtype=np.complex128)
-#     for j in range(0, M):
-#             ha[j, :, :] = np.linalg.inv(np.identity(N) - (refInd**2 - 1)
-#                                               * circ2[i, j, :, :])
-#     return ha
-
-# from joblib import Parallel, delayed  
-# import multiprocessing
-# inputs = range(L)
-
-# num_cores = multiprocessing.cpu_count()
-
-# print("numCores = " + str(num_cores))
-
-# results = np.zeros_like(circ2_inv)
-# results = Parallel(n_jobs=num_cores)(delayed(processInput)(i) for i in inputs)  
+# error = np.linalg.norm(U_centre-np.conj(P)) / np.linalg.norm(P)
+# print('Error = ', error)

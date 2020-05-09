@@ -1,5 +1,5 @@
 # Circulant acoustic
-def circ_1_level_acoustic(Toep, L, M, N):
+def circ_1_level_acoustic(Toep, L, M, N, on_off):
     import numpy as np
     from scipy.linalg import toeplitz
     # Create 1-level circulant approximation to Toeplitz operator
@@ -18,21 +18,24 @@ def circ_1_level_acoustic(Toep, L, M, N):
     c1_fft = np.fft.fft(c1.T).T
     circ_L_opToep = c1_fft
 
-    # Construct 1-level preconditioner
-    circ = np.zeros((L, M*N, M*N), dtype=np.complex128)
-    for i_loop in range(0, L):
-        temp = np.zeros((M*N, M*N), dtype=np.complex128)
-        chan = np.zeros((N, M, M), dtype=np.complex128)
-        # First block
-        for i in range(0, N):
-            chan[i, :, :] = toeplitz(c1_fft[i_loop, 0:M, i], c1_fft[i_loop, 0:M, i])
+    if (on_off in 'on'):
+        # Construct 1-level preconditioner
+        circ = np.zeros((L, M*N, M*N), dtype=np.complex128)
+        for i_loop in range(0, L):
+            temp = np.zeros((M*N, M*N), dtype=np.complex128)
+            chan = np.zeros((N, M, M), dtype=np.complex128)
+            # First block
+            for i in range(0, N):
+                chan[i, :, :] = toeplitz(c1_fft[i_loop, 0:M, i], c1_fft[i_loop, 0:M, i])
 
-        result = chan[toeplitz(np.arange(0, N))].transpose(0, 2, 1, 3).reshape(M*N, M*N).copy()
-        temp[0:M*N, 0:M*N] = result
+            result = chan[toeplitz(np.arange(0, N))].transpose(0, 2, 1, 3).reshape(M*N, M*N).copy()
+            temp[0:M*N, 0:M*N] = result
 
-        circ[i_loop, :, :] = temp
+            circ[i_loop, :, :] = temp
+    else:
+        circ = 0
         
-        return circ, circ_L_opToep
+    return circ, circ_L_opToep
 
     
 def circ_2_level_acoustic(circ_L_opToep, L, M, N):
